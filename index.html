@@ -49,22 +49,32 @@ header{position:sticky; top:0; z-index:20; background:var(--bg); padding-top:cal
 
 .now{background:var(--card); border-radius:20px; padding:20px; box-shadow:var(--shadow); margin-top:2px;}
 .now .tag{font-family:var(--mono); font-size:10px; letter-spacing:.04em; padding:3px 9px; border-radius:20px; display:inline-block;}
-.now .tag.block{background:var(--c-block-tint); color:var(--c-block);}
-.now .tag.probe{background:var(--c-probe-tint); color:var(--c-probe);}
-.now .tag.assess{background:var(--c-assess-tint); color:var(--c-assess);}
-.now .tag.brk{background:var(--c-break-tint); color:var(--c-break);}
+.now .tag.steady{background:var(--c-block-tint); color:var(--c-block);}
+.now .tag.bumpy{background:var(--c-probe-tint); color:var(--c-probe);}
+.now .tag.split{background:var(--c-assess-tint); color:var(--c-assess);}
+.now .tag.watch{background:var(--c-break-tint); color:var(--c-break);}
+.now .tag.check{background:var(--c-flow-tint); color:var(--c-flow);}
 .now .tag.flow{background:var(--c-flow-tint); color:var(--c-flow);}
 .now h2{font-size:24px; margin:10px 0 2px; font-weight:700;}
 .now .sub{font-size:13.5px; color:var(--ink2); margin-bottom:14px;}
 
 .trackwrap{background:var(--card2); border-radius:16px; overflow:hidden; margin-bottom:10px;}
 canvas#track-canvas, canvas#demo-canvas, canvas#fig-canvas{width:100%; display:block;}
+.zonebar{display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--ink3); margin:-2px 2px 10px;}
 .holdrow{margin-bottom:12px;}
-button.hold{font-size:24px; padding:18px; background:var(--card2);}
-button.hold:active{background:var(--accent-tint);}
-.nback{display:flex; align-items:center; gap:12px; margin-bottom:14px; background:var(--card2); border-radius:14px; padding:10px 14px;}
-.nback-letter{font-family:var(--mono); font-size:24px; font-weight:700; width:32px; text-align:center;}
-.nback-score{font-family:var(--mono); font-size:12px; color:var(--ink3); margin-left:auto;}
+.dragstrip{position:relative; height:54px; background:var(--card2); border-radius:27px; margin-bottom:6px; touch-action:none;}
+.draghandle{position:absolute; top:3px; left:50%; width:48px; height:48px; border-radius:50%; background:var(--accent);
+  transform:translateX(-50%); display:flex; align-items:center; justify-content:center; color:#fff; font-size:19px; transition:background .1s;}
+.draghint{text-align:center; font-size:11px; color:var(--ink3); margin:0 0 12px;}
+button.hold{font-size:24px; padding:18px; background:var(--card2); transition:transform .1s, background .1s;}
+button.hold:active{background:var(--accent-tint); transform:scale(0.92);}
+.splittask{display:flex; align-items:center; gap:10px; margin-bottom:14px; background:var(--card2); border-radius:14px; padding:10px 14px; transition:background .3s;}
+.splittask.flash-ok{animation:flashOk .45s ease;}
+.splittask.flash-bad{animation:flashBad .45s ease;}
+@keyframes flashOk{0%{background:var(--c-block-tint);} 100%{background:var(--card2);}}
+@keyframes flashBad{0%{background:var(--warn-tint);} 100%{background:var(--card2);}}
+.split-q{font-family:var(--mono); font-size:18px; font-weight:700; min-width:64px;}
+.split-score{font-family:var(--mono); font-size:12px; color:var(--ink3); margin-left:auto;}
 
 .timerbig{font-family:var(--mono); font-size:44px; font-weight:600; text-align:center; margin:6px 0 2px; letter-spacing:.01em;}
 .timertarget{text-align:center; font-size:11.5px; color:var(--ink3); margin-bottom:14px;}
@@ -86,9 +96,12 @@ button.small{flex:0 0 auto; padding:11px 14px; min-height:44px; font-size:14px;}
 .checklist input{width:20px; height:20px; flex:0 0 auto;}
 
 .flash{height:120px; border-radius:16px; display:flex; align-items:center; justify-content:center;
-  font-family:var(--mono); font-weight:700; font-size:16px; margin-bottom:14px; background:var(--card2); color:var(--ink3);}
-.flash.go{background:var(--good); color:#fff; font-size:22px;}
+  font-family:var(--mono); font-weight:700; font-size:16px; margin-bottom:14px; background:var(--card2); color:var(--ink3); transition:transform .15s;}
+.flash.go{background:var(--good); color:#fff; font-size:22px; animation:breathe 1s ease-in-out infinite;}
 .flash.early{background:var(--warn); color:#fff;}
+.flash.watching{animation:breathe 2.4s ease-in-out infinite;}
+.flash.hit{transform:scale(1.05); background:var(--good); color:#fff;}
+@keyframes breathe{0%,100%{opacity:.85; transform:scale(1);} 50%{opacity:1; transform:scale(1.03);}}
 .pvtstats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; font-family:var(--mono); font-size:11.5px;}
 .pvtstats div{background:var(--card2); border-radius:11px; padding:9px 11px; color:var(--ink3);}
 .pvtstats b{display:block; font-size:17px; margin-top:2px; color:var(--ink); font-family:var(--sans);}
@@ -178,40 +191,35 @@ th{color:var(--ink3); font-weight:600; font-size:11px;}
    Position error e drifts on its own (integrator, no natural
    restoring force) and is only brought back by holding a button. */
 const PROFILES = {
-  practice:  {noiseSD:0.020, road:false, roadExtra:0,     pert:false, pertAmt:0.0, pertMin:99, pertMax:99, load:false, corrRate:1.7},
-  baseline:  {noiseSD:0.028, road:false, roadExtra:0,     pert:true,  pertAmt:0.9, pertMin:12, pertMax:19, load:false, corrRate:1.7},
-  road:      {noiseSD:0.028, road:true,  roadExtra:0.05,  pert:true,  pertAmt:0.9, pertMin:12, pertMax:19, load:false, corrRate:1.7},
-  load:      {noiseSD:0.028, road:false, roadExtra:0,     pert:true,  pertAmt:0.9, pertMin:12, pertMax:19, load:true,  corrRate:1.7},
-  removal:   {noiseSD:0.028, road:false, roadExtra:0,     pert:true,  pertAmt:0.9, pertMin:12, pertMax:19, load:false, corrRate:1.7},
-  induction: {noiseSD:0.028, road:false, roadExtra:0,     pert:false, pertAmt:0.0, pertMin:99, pertMax:99, load:false, corrRate:1.7}
+  baseline:  {noiseSD:0.028, road:false, roadExtra:0,    pert:true, pertAmt:0.9, pertMin:12, pertMax:19, load:false, corrRate:1.7, control:'hold'},
+  road:      {noiseSD:0.028, road:true,  roadExtra:0.05, pert:true, pertAmt:0.9, pertMin:12, pertMax:19, load:false, corrRate:2.2, control:'drag'},
+  load:      {noiseSD:0.028, road:false, roadExtra:0,    pert:true, pertAmt:0.9, pertMin:12, pertMax:19, load:true,  corrRate:0,   control:'tap', nudge:0.5}
 };
 
 const STEPS = [
-  {t:'action', title:'Start Session',     tag:'flow',   dur:0,    desc:'', profile:null},
-  {t:'consent', title:'Consent',          tag:'flow',   dur:0,    desc:'', profile:null},
-  {t:'timer',  title:'Practice',          tag:'block',  dur:180,  desc:'Learn the controls',           profile:'practice'},
-  {t:'timer',  title:'Baseline',          tag:'block',  dur:300,  desc:'Normal tracking',               profile:'baseline'},
-  {t:'timer',  title:'Road Condition',    tag:'block',  dur:300,  desc:'Tracking + road disturbance',   profile:'road'},
-  {t:'timer',  title:'Cognitive Load',    tag:'block',  dur:300,  desc:'Tracking + 2-back task',        profile:'load'},
-  {t:'timer',  title:'Removal Probe',     tag:'probe',  dur:60,   desc:'Behaviour after load removed',  profile:'removal'},
-  {t:'kss',    title:'KSS',               tag:'assess', dur:0,    desc:'Sleepiness rating', profile:null},
-  {t:'pvt',    title:'PVT',               tag:'assess', dur:180,  desc:'Tap the instant it turns green', profile:null},
-  {t:'timer',  title:'Fatigue Induction', tag:'block',  dur:1320, desc:'Sustained monotonous task',     profile:'induction'},
-  {t:'timer',  title:'Fatigued Baseline', tag:'block',  dur:300,  desc:'Tracking, post-fatigue',        profile:'baseline'},
-  {t:'timer',  title:'Fatigued Road',     tag:'block',  dur:300,  desc:'Road, post-fatigue',            profile:'road'},
-  {t:'timer',  title:'Break',             tag:'brk',    dur:120,  desc:'Seated, no task', profile:null},
-  {t:'timer',  title:'Persistence Probe', tag:'probe',  dur:60,   desc:'Checks lasting effect',         profile:'removal'},
-  {t:'action', title:'Finish Session',    tag:'flow',   dur:0,    desc:'', profile:null}
+  {t:'action', title:'Start Session',     tag:'flow',  dur:0,    desc:'', profile:null},
+  {t:'consent', title:'Consent',          tag:'flow',  dur:0,    desc:'', profile:null},
+  {t:'timer',  title:'Baseline',          tag:'steady', dur:300,  desc:'Steady Hand — hold ◀▶ to correct, nothing else going on', profile:'baseline'},
+  {t:'timer',  title:'Road Condition',    tag:'bumpy',  dur:300,  desc:'Bumpy Road — drag to steer through the jolts',  profile:'road'},
+  {t:'timer',  title:'Cognitive Load',    tag:'split',  dur:300,  desc:'Split Focus — tap to nudge, while solving sums',         profile:'load'},
+  {t:'kss',    title:'KSS',               tag:'check', dur:0,    desc:'Sleepiness rating', profile:null},
+  {t:'pvt',    title:'PVT',               tag:'check', dur:180,  desc:'Quick Tap — tap the instant it turns green', profile:null},
+  {t:'vigil',  title:'Fatigue Induction', tag:'watch', dur:1320, desc:'The Long Watch — no tracking, just tedium on purpose', profile:null},
+  {t:'timer',  title:'Fatigued Baseline', tag:'steady', dur:300,  desc:'Steady Hand again, now tired — compare to before', profile:'baseline'},
+  {t:'timer',  title:'Fatigued Road',     tag:'bumpy',  dur:300,  desc:'Bumpy Road again, now tired — compare to before',  profile:'road'},
+  {t:'timer',  title:'Break',             tag:'flow',  dur:120,  desc:'Seated, no task', profile:null},
+  {t:'action', title:'Finish Session',    tag:'flow',  dur:0,    desc:'', profile:null}
 ];
-const TAGLABEL = {block:'TASK',probe:'PROBE',assess:'CHECK',brk:'BREAK',flow:'—'};
+const TAGLABEL = {steady:'STEADY HAND', bumpy:'BUMPY ROAD', split:'SPLIT FOCUS', watch:'LONG WATCH', check:'CHECK', flow:'—'};
 
 let S = { code:'', current:0, startedAt:null, steps: STEPS.map(()=>({status:'locked', startedAt:null, endedAt:null, value:null})), log:[] };
 let tickHandle=null;
 let uiView='main';
 
 /* runtime-only state for the running tracking task — never persisted */
-let engineRuntime={}, engineInterval=null, nbackInterval=null;
+let engineRuntime={}, engineInterval=null, splitInterval=null;
 let holdDir={left:false, right:false};
+let dragValue=0;
 
 function nowISO(){ return new Date().toISOString(); }
 function fmtClock(sec){
@@ -221,9 +229,9 @@ function fmtClock(sec){
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function cssvar(name){ try{ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }catch(e){ return '#888'; } }
-function save(){ try{ localStorage.setItem('sh_operator_v4', JSON.stringify(S)); }catch(e){} }
+function save(){ try{ localStorage.setItem('sh_operator_v7', JSON.stringify(S)); }catch(e){} }
 function load(){
-  try{ const raw=localStorage.getItem('sh_operator_v4'); if(!raw) return;
+  try{ const raw=localStorage.getItem('sh_operator_v7'); if(!raw) return;
     const rec=JSON.parse(raw); if(rec && Array.isArray(rec.steps) && rec.steps.length===STEPS.length) S=rec;
   }catch(e){}
 }
@@ -298,6 +306,7 @@ function peek(i){
   let extra='';
   if(st.value && st.value.sdlp!=null) extra='<p>SDLP '+st.value.sdlp+' · '+st.value.pertCount+' perturbation(s)</p>';
   if(st.value && st.value.medianRT!=null) extra='<p>Median RT '+st.value.medianRT+'ms · '+st.value.lapses+' lapse(s)</p>';
+  if(st.value && st.value.hits!=null) extra='<p>'+st.value.hits+' hit(s) · '+st.value.misses+' miss(es) · best streak '+(st.value.bestStreak||0)+'</p>';
   openModal('<h3>'+esc(s.title)+'</h3><p>Duration '+dur+'</p>'+extra+'<div class="btnrow"><button class="ghost" id="m-close">Close</button></div>');
   document.getElementById('m-close').onclick=closeModal;
 }
@@ -312,6 +321,7 @@ function renderNow(){
   else if(step.t==='timer') control = timerPanel(step, st);
   else if(step.t==='kss') control = kssPanel();
   else if(step.t==='pvt') control = pvtPanel();
+  else if(step.t==='vigil') control = vigilPanel(step);
   host.innerHTML = `<div class="now">
     <span class="tag ${step.tag}">${TAGLABEL[step.tag]}</span>
     <h2>${esc(step.title)}</h2>
@@ -341,13 +351,20 @@ function consentPanel(){
   </div>
   <div class="btnrow"><button class="primary" id="b-continue" disabled>Continue</button><button class="warn" id="b-withdraw">Withdraw</button></div>`;
 }
+function controlMarkup(p){
+  if(p.control==='hold') return `<div class="btnrow holdrow"><button class="hold" id="hold-left">◀</button><button class="hold" id="hold-right">▶</button></div>`;
+  if(p.control==='drag') return `<div class="dragstrip" id="dragstrip"><div class="draghandle" id="draghandle">↔</div></div><div class="draghint">drag left / right to steer</div>`;
+  if(p.control==='tap') return `<div class="btnrow holdrow"><button class="hold" id="tap-left">Nudge ◀</button><button class="hold" id="tap-right">Nudge ▶</button></div>`;
+  return '';
+}
 function timerPanel(step, st){
   const remaining = st.remaining!=null ? st.remaining : step.dur;
   const p = step.profile ? PROFILES[step.profile] : null;
   return `
-    ${step.profile ? `<div class="trackwrap"><canvas id="track-canvas" height="90"></canvas></div>
-      <div class="btnrow holdrow"><button class="hold" id="hold-left">◀</button><button class="hold" id="hold-right">▶</button></div>
-      ${p.load ? `<div class="nback"><div class="nback-letter" id="nb-letter">–</div><button class="small" id="nb-match">Match 2-back</button><span class="nback-score" id="nb-score">0/0</span></div>` : ''}` : ''}
+    ${step.profile ? `<div class="trackwrap" id="trackwrap"><canvas id="track-canvas" height="90"></canvas></div>
+      <div class="zonebar"><span id="zone-stat">in zone —</span><span id="bump-stat">0 bumps</span></div>
+      ${controlMarkup(p)}
+      ${p.load ? `<div class="splittask" id="splitcard"><div class="split-q" id="sp-q">–</div><div class="btnrow" style="margin:0"><button class="small" id="sp-a0">–</button><button class="small" id="sp-a1">–</button></div><span class="split-score" id="sp-score">0/0</span></div>` : ''}` : ''}
     <div class="timerbig" id="t-display">${fmtClock(remaining)}</div>
     <div class="timertarget">target ${fmtClock(step.dur)}</div>
     <div class="btnrow">
@@ -370,8 +387,17 @@ function pvtPanel(){
     <div class="flash" id="pvt-flash">Wait…</div>
     <div class="btnrow"><button class="primary" id="pvt-start">Start</button><button class="ghost" id="pvt-done" disabled>Finish</button></div>`;
 }
+function vigilPanel(step){
+  return `<div class="blurb" style="margin-top:0">No tracking here — just watch, and tap the circle the moment it lights up. The tedium itself is what builds fatigue.</div>
+    <div class="flash" id="vg-flash" style="height:150px">Get ready…</div>
+    <div class="pvtstats">
+      <div>Hits<b id="vg-hits">0</b></div><div>Misses<b id="vg-miss">0</b></div>
+      <div>False taps<b id="vg-fs">0</b></div><div>Time left<b id="vg-time">${fmtClock(step.dur)}</b></div>
+    </div>
+    <div class="btnrow"><button class="primary" id="vg-start">Start</button><button class="ghost" id="vg-done" disabled>Finish now</button></div>`;
+}
 
-/* ── tracking-task engine (main session) ───────────────────── */
+/* ── Steady Hand / Bumpy Road / Split Focus engine ──────────── */
 function drawDot(canvas, e){
   if(!canvas) return;
   const w=canvas.clientWidth||300, h=90;
@@ -380,26 +406,40 @@ function drawDot(canvas, e){
   const ctx=canvas.getContext('2d');
   ctx.clearRect(0,0,w,h);
   const midY=h/2;
-  ctx.fillStyle=cssvar('--card3'); ctx.fillRect(0, midY-1.5, w, 3);
-  ctx.fillStyle=cssvar('--ink3'); ctx.fillRect(w/2-1, midY-16, 2, 32);
   const range=(w/2)-22;
   const x=w/2 + (e/3)*range;
-  ctx.beginPath(); ctx.arc(x, midY, 13, 0, Math.PI*2);
-  ctx.fillStyle=cssvar('--accent'); ctx.fill();
+  const off=Math.min(1, Math.abs(e)/2.2);
+  /* soft target ring at center, no line */
+  ctx.beginPath(); ctx.arc(w/2, midY, 22, 0, Math.PI*2);
+  ctx.strokeStyle=cssvar('--card3'); ctx.lineWidth=6; ctx.stroke();
+  /* dot color shifts from accent (centered) to warn (off) */
+  const c1=hexToRgb(cssvar('--accent')), c2=hexToRgb(cssvar('--warn'));
+  const mix=c1.map((v,idx)=>Math.round(v+(c2[idx]-v)*off));
+  const radius=13+off*3;
+  ctx.beginPath(); ctx.arc(x, midY, radius, 0, Math.PI*2);
+  ctx.fillStyle='rgb('+mix.join(',')+')'; ctx.fill();
 }
+function hexToRgb(hex){
+  hex=(hex||'#2c6e68').replace('#','');
+  if(hex.length===3) hex=hex.split('').map(c=>c+c).join('');
+  const n=parseInt(hex,16);
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
 function ensureEngineBoundTo(i, step, st){
   if(!engineRuntime[i]){
     const p=PROFILES[step.profile];
-    engineRuntime[i]={e:0, elapsed:0, nextPert:p.pertMin+Math.random()*(p.pertMax-p.pertMin), samples:[], bumps:[]};
+    engineRuntime[i]={e:0, elapsed:0, nextPert:p.pertMin+Math.random()*(p.pertMax-p.pertMin), samples:[], bumps:[], inZone:0};
   }
   drawDot(document.getElementById('track-canvas'), engineRuntime[i].e);
   if(st.running){
     if(engineInterval) clearInterval(engineInterval);
     engineInterval=setInterval(()=>tickEngine(i, step), 50);
-    if(PROFILES[step.profile].load) startNback();
+    if(PROFILES[step.profile].load) startSplit();
   } else {
     if(engineInterval){ clearInterval(engineInterval); engineInterval=null; }
-    stopNback();
+    stopSplit();
+    holdDir={left:false, right:false}; dragValue=0;
   }
 }
 function tickEngine(i, step){
@@ -408,16 +448,34 @@ function tickEngine(i, step){
   const n=(Math.random()+Math.random()+Math.random()-1.5);
   rt.e += n*p.noiseSD;
   if(p.road) rt.e += (Math.random()-0.5)*p.roadExtra;
-  if(holdDir.left) rt.e -= p.corrRate*dt;
-  if(holdDir.right) rt.e += p.corrRate*dt;
+  if(p.control==='hold'){
+    if(holdDir.left) rt.e -= p.corrRate*dt;
+    if(holdDir.right) rt.e += p.corrRate*dt;
+  } else if(p.control==='drag'){
+    rt.e += dragValue*p.corrRate*dt;
+  }
   if(p.pert){
     rt.nextPert -= dt;
-    if(rt.nextPert<=0){ const sgn=Math.random()<0.5?-1:1; rt.e+=sgn*p.pertAmt; rt.bumps.push(rt.elapsed); rt.nextPert=p.pertMin+Math.random()*(p.pertMax-p.pertMin); }
+    if(rt.nextPert<=0){
+      const sgn=Math.random()<0.5?-1:1; rt.e+=sgn*p.pertAmt; rt.bumps.push(rt.elapsed);
+      rt.nextPert=p.pertMin+Math.random()*(p.pertMax-p.pertMin);
+      buzz(40);
+      const bs=document.getElementById('bump-stat'); if(bs) bs.textContent=rt.bumps.length+' bump'+(rt.bumps.length===1?'':'s');
+    }
   }
   rt.e=Math.max(-3, Math.min(3, rt.e));
   rt.elapsed+=dt;
   rt.samples.push(rt.e);
+  if(Math.abs(rt.e)<0.5) rt.inZone=(rt.inZone||0)+1;
   drawDot(document.getElementById('track-canvas'), rt.e);
+  if(rt.samples.length%10===0){
+    const zs=document.getElementById('zone-stat');
+    if(zs) zs.textContent='in zone '+Math.round(((rt.inZone||0)/rt.samples.length)*100)+'%';
+  }
+  if(p.road){
+    const wrap=document.getElementById('trackwrap');
+    if(wrap) wrap.style.transform='translate('+((Math.random()-0.5)*7).toFixed(1)+'px,'+((Math.random()-0.5)*4).toFixed(1)+'px)';
+  }
 }
 function finalizeEngine(i){
   const rt=engineRuntime[i]; if(!rt || !rt.samples.length) return null;
@@ -427,7 +485,8 @@ function finalizeEngine(i){
 }
 function stopEngineFor(i){
   if(engineInterval){ clearInterval(engineInterval); engineInterval=null; }
-  stopNback();
+  stopSplit();
+  holdDir={left:false, right:false}; dragValue=0;
   delete engineRuntime[i];
 }
 function pauseCurrentEngine(){
@@ -436,23 +495,91 @@ function pauseCurrentEngine(){
     const st=S.steps[i];
     if(st.running){ st.running=false; save(); }
     if(engineInterval){ clearInterval(engineInterval); engineInterval=null; }
-    stopNback();
+    stopSplit();
+    holdDir={left:false, right:false}; dragValue=0;
   }
 }
-function startNback(){
-  stopNback();
-  const letters=['A','B','C','D','E','F']; let history=[], hits=0, total=0, armed=false;
-  const letterEl=document.getElementById('nb-letter'), scoreEl=document.getElementById('nb-score'), matchBtn=document.getElementById('nb-match');
+/* Split Focus: simple arithmetic answered while still holding the tracking buttons */
+function startSplit(){
+  stopSplit();
+  let hits=0, total=0, correctIsA0=true, answer=0;
+  const qEl=document.getElementById('sp-q'), a0=document.getElementById('sp-a0'), a1=document.getElementById('sp-a1'), scoreEl=document.getElementById('sp-score');
   function next(){
-    const L=letters[Math.floor(Math.random()*letters.length)];
-    history.push(L); if(history.length>10) history.shift();
-    if(letterEl) letterEl.textContent=L;
-    armed = history.length>=3 && history[history.length-3]===L;
+    const x=1+Math.floor(Math.random()*9), y=1+Math.floor(Math.random()*9);
+    const op=Math.random()<0.5?'+':'−';
+    answer = op==='+' ? x+y : x-y;
+    if(qEl) qEl.textContent=x+' '+op+' '+y;
+    const wrong = answer + (Math.random()<0.5?1:-1)*(1+Math.floor(Math.random()*3));
+    correctIsA0 = Math.random()<0.5;
+    if(a0) a0.textContent = correctIsA0?answer:wrong;
+    if(a1) a1.textContent = correctIsA0?wrong:answer;
   }
-  if(matchBtn) matchBtn.onclick=()=>{ total++; if(armed) hits++; if(scoreEl) scoreEl.textContent=hits+'/'+total; };
-  next(); nbackInterval=setInterval(next,2500);
+  function pick(isA0){
+    const correct=(isA0 && correctIsA0)||(!isA0 && !correctIsA0);
+    total++; if(correct) hits++;
+    if(scoreEl) scoreEl.textContent=hits+'/'+total;
+    const card=document.getElementById('splitcard');
+    if(card){ card.classList.remove('flash-ok','flash-bad'); void card.offsetWidth; card.classList.add(correct?'flash-ok':'flash-bad'); }
+    buzz(correct?20:60);
+    next();
+  }
+  if(a0) a0.onclick=()=>pick(true);
+  if(a1) a1.onclick=()=>pick(false);
+  next(); splitInterval=setInterval(next,4000);
 }
-function stopNback(){ if(nbackInterval){ clearInterval(nbackInterval); nbackInterval=null; } }
+function stopSplit(){ if(splitInterval){ clearInterval(splitInterval); splitInterval=null; } }
+
+/* Long Watch: slow, monotonous vigilance task — no tracking */
+function wireVigil(i, st, step){
+  const state={running:false, hits:0, misses:0, falseTaps:0, streak:0, best:0, armed:false, timeoutId:null, missTimer:null, deadline:0, endCheck:null};
+  const flash=document.getElementById('vg-flash'), startBtn=document.getElementById('vg-start'), doneBtn=document.getElementById('vg-done');
+  function stats(){
+    document.getElementById('vg-hits').textContent=state.hits;
+    document.getElementById('vg-miss').textContent=state.misses;
+    document.getElementById('vg-fs').textContent=state.falseTaps;
+  }
+  function armNext(){
+    if(performance.now()>=state.deadline) return;
+    flash.className='flash watching'; flash.textContent='Watching…'+(state.best?' · best streak '+state.best:'');
+    const isi=6000+Math.random()*8000;
+    state.timeoutId=setTimeout(()=>{
+      if(performance.now()>=state.deadline) return;
+      flash.className='flash go'; flash.textContent='TAP'; state.armed=true;
+      state.missTimer=setTimeout(()=>{
+        if(state.armed){ state.armed=false; state.streak=0; state.misses++; stats(); buzz(80); flash.className='flash'; flash.textContent='Missed'; armNext(); }
+      },1500);
+    }, isi);
+  }
+  flash.onclick=()=>{
+    if(!state.running) return;
+    if(state.armed){
+      state.armed=false; clearTimeout(state.missTimer); state.hits++; state.streak++;
+      state.best=Math.max(state.best, state.streak); stats(); buzz(25);
+      flash.className='flash hit'; flash.textContent='Hit! streak '+state.streak;
+      setTimeout(armNext, 500);
+    } else { state.falseTaps++; state.streak=0; stats(); }
+  };
+  function finish(){
+    if(state.endCheck) clearInterval(state.endCheck);
+    clearTimeout(state.timeoutId); clearTimeout(state.missTimer);
+    state.running=false;
+    st.value={hits:state.hits, misses:state.misses, falseTaps:state.falseTaps, bestStreak:state.best};
+    log(step.title+' finished — '+state.hits+' hit(s), '+state.misses+' miss(es), best streak '+state.best);
+    completeStep(i);
+  }
+  startBtn.onclick=()=>{
+    state.running=true; state.deadline=performance.now()+step.dur*1000;
+    if(!st.startedAt) st.startedAt=nowISO();
+    startBtn.disabled=true; doneBtn.disabled=false;
+    log(step.title+' started'); armNext();
+    state.endCheck=setInterval(()=>{
+      const remain=Math.max(0,(state.deadline-performance.now())/1000);
+      const timeEl=document.getElementById('vg-time'); if(timeEl) timeEl.textContent=fmtClock(remain);
+      if(remain<=0) finish();
+    },1000);
+  };
+  doneBtn.onclick=finish;
+}
 
 function wirePanel(step, st, i){
   document.getElementById('p-code').oninput=e=>{ S.code=e.target.value; save(); };
@@ -487,13 +614,38 @@ function wirePanel(step, st, i){
     document.getElementById('t-plus').onclick=()=>{ st.remaining=st.remaining+15; save(); document.getElementById('t-display').textContent=fmtClock(st.remaining); };
     document.getElementById('t-complete').onclick=()=>{ st.running=false; log(step.title+' marked complete'); completeStep(i); };
     if(step.profile){
-      const bL=document.getElementById('hold-left'), bR=document.getElementById('hold-right');
-      const down=d=>e=>{ e.preventDefault(); holdDir[d]=true; };
-      const up=d=>()=>{ holdDir[d]=false; };
-      ['pointerdown','touchstart'].forEach(ev=>bL.addEventListener(ev, down('left'), {passive:false}));
-      ['pointerup','pointercancel','pointerleave','touchend'].forEach(ev=>bL.addEventListener(ev, up('left')));
-      ['pointerdown','touchstart'].forEach(ev=>bR.addEventListener(ev, down('right'), {passive:false}));
-      ['pointerup','pointercancel','pointerleave','touchend'].forEach(ev=>bR.addEventListener(ev, up('right')));
+      const p=PROFILES[step.profile];
+      if(p.control==='hold'){
+        const bL=document.getElementById('hold-left'), bR=document.getElementById('hold-right');
+        const down=d=>e=>{ e.preventDefault(); holdDir[d]=true; };
+        const up=d=>()=>{ holdDir[d]=false; };
+        ['pointerdown','touchstart'].forEach(ev=>bL.addEventListener(ev, down('left'), {passive:false}));
+        ['pointerup','pointercancel','pointerleave','touchend'].forEach(ev=>bL.addEventListener(ev, up('left')));
+        ['pointerdown','touchstart'].forEach(ev=>bR.addEventListener(ev, down('right'), {passive:false}));
+        ['pointerup','pointercancel','pointerleave','touchend'].forEach(ev=>bR.addEventListener(ev, up('right')));
+      } else if(p.control==='drag'){
+        const strip=document.getElementById('dragstrip'), handle=document.getElementById('draghandle');
+        let dragging=false;
+        const setFromX=x=>{
+          const rect=strip.getBoundingClientRect();
+          const rel=Math.max(0, Math.min(1, (x-rect.left)/rect.width));
+          dragValue=(rel-0.5)*2;
+          handle.style.left=(rel*100)+'%';
+        };
+        strip.addEventListener('pointerdown', e=>{ dragging=true; strip.setPointerCapture(e.pointerId); setFromX(e.clientX); });
+        strip.addEventListener('pointermove', e=>{ if(dragging) setFromX(e.clientX); });
+        ['pointerup','pointercancel','pointerleave'].forEach(ev=>strip.addEventListener(ev, ()=>{ dragging=false; dragValue=0; handle.style.left='50%'; }));
+      } else if(p.control==='tap'){
+        const tl=document.getElementById('tap-left'), tr=document.getElementById('tap-right');
+        const nudge=dir=>{
+          const rt=engineRuntime[i]; if(!rt) return;
+          rt.e=Math.max(-3, Math.min(3, rt.e + dir*p.nudge));
+          buzz(15);
+          drawDot(document.getElementById('track-canvas'), rt.e);
+        };
+        tl.onclick=()=>nudge(-1);
+        tr.onclick=()=>nudge(1);
+      }
     }
   }
   if(step.t==='kss'){
@@ -506,6 +658,7 @@ function wirePanel(step, st, i){
     document.getElementById('b-kss-confirm').onclick=()=>{ st.value=picked; log('KSS '+picked); completeStep(i); };
   }
   if(step.t==='pvt') wirePVT(i, st);
+  if(step.t==='vigil') wireVigil(i, st, step);
 }
 
 function completeStep(i){
@@ -590,6 +743,7 @@ function renderDoneList(){
     let extra=dur;
     if(st.value && st.value.sdlp!=null) extra=dur+' · SDLP '+st.value.sdlp;
     else if(st.value && st.value.medianRT!=null) extra=dur+' · '+st.value.medianRT+'ms';
+    else if(st.value && st.value.hits!=null) extra=dur+' · '+st.value.hits+' hit(s)';
     return `<div class="dlrow"><span class="ck">✓</span><span class="nm">${esc(s.title)}</span><span class="du">${extra}</span></div>`;
   }).join('');
 }
