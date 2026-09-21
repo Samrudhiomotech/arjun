@@ -204,10 +204,10 @@ const STEPS = [
   {t:'timer',  title:'Cognitive Load',    tag:'split',  dur:300,  desc:'Split Focus — tap to nudge, while solving sums',         profile:'load'},
   {t:'kss',    title:'KSS',               tag:'check', dur:0,    desc:'Sleepiness rating', profile:null},
   {t:'pvt',    title:'PVT',               tag:'check', dur:180,  desc:'Quick Tap — tap the instant it turns green', profile:null},
-  {t:'vigil',  title:'Fatigue Induction', tag:'watch', dur:1320, desc:'The Long Watch — no tracking, just tedium on purpose', profile:null},
+  {t:'vigil',  title:'Fatigue Induction', tag:'watch', dur:1620, desc:'The Long Watch — no tracking, just tedium on purpose', profile:null},
   {t:'timer',  title:'Fatigued Baseline', tag:'steady', dur:300,  desc:'Steady Hand again, now tired — compare to before', profile:'baseline'},
   {t:'timer',  title:'Fatigued Road',     tag:'bumpy',  dur:300,  desc:'Bumpy Road again, now tired — compare to before',  profile:'road'},
-  {t:'timer',  title:'Break',             tag:'flow',  dur:120,  desc:'Seated, no task', profile:null},
+  {t:'timer',  title:'Break',             tag:'flow',  dur:300,  desc:'Seated, no task', profile:null},
   {t:'action', title:'Finish Session',    tag:'flow',  dur:0,    desc:'', profile:null}
 ];
 const TAGLABEL = {steady:'STEADY HAND', bumpy:'BUMPY ROAD', split:'SPLIT FOCUS', watch:'LONG WATCH', check:'CHECK', flow:'—'};
@@ -229,9 +229,9 @@ function fmtClock(sec){
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function cssvar(name){ try{ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }catch(e){ return '#888'; } }
-function save(){ try{ localStorage.setItem('sh_operator_v7', JSON.stringify(S)); }catch(e){} }
+function save(){ try{ localStorage.setItem('sh_operator_v8', JSON.stringify(S)); }catch(e){} }
 function load(){
-  try{ const raw=localStorage.getItem('sh_operator_v7'); if(!raw) return;
+  try{ const raw=localStorage.getItem('sh_operator_v8'); if(!raw) return;
     const rec=JSON.parse(raw); if(rec && Array.isArray(rec.steps) && rec.steps.length===STEPS.length) S=rec;
   }catch(e){}
 }
@@ -251,6 +251,40 @@ async function saveFile(filename, text, mime){
     setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },1000);
     return true;
   }catch(e){ return false; }
+}
+const ADMIN_EMAIL='samrudhi.mahadik@onmyowntechnology.com';
+function sessionSummaryText(){
+  const lines=[ 'Steady Hands session — '+(S.code||'no code'), 'Finished '+new Date().toLocaleString(), '' ];
+  STEPS.forEach((s,idx)=>{
+    const st=S.steps[idx]; if(st.status!=='done') return;
+    let extra='';
+    if(st.value && st.value.sdlp!=null) extra=' — SDLP '+st.value.sdlp+', '+st.value.pertCount+' bump(s)';
+    else if(st.value && st.value.medianRT!=null) extra=' — median RT '+st.value.medianRT+'ms, '+st.value.lapses+' lapse(s)';
+    else if(st.value && st.value.hits!=null) extra=' — '+st.value.hits+' hit(s), best streak '+(st.value.bestStreak||0);
+    else if(typeof st.value==='number') extra=' — KSS '+st.value;
+    lines.push(s.title+extra);
+  });
+  return lines.join('\n');
+}
+/* Best-effort email to admin. A browser page cannot silently send mail on
+   its own — this tries a no-account mail relay (FormSubmit) first, and
+   falls back to opening a pre-filled email draft if that's blocked. */
+async function emailSessionToAdmin(){
+  const summary=sessionSummaryText();
+  const payload=JSON.stringify(S,null,2);
+  try{
+    const res=await fetch('https://formsubmit.co/ajax/'+ADMIN_EMAIL, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({_subject:'Steady Hands session — '+(S.code||'no code'), summary, session_json:payload})
+    });
+    if(res.ok){ log('Session emailed to admin'); return; }
+    throw new Error('relay rejected');
+  }catch(e){
+    const body=encodeURIComponent(summary+'\n\n(The full data file was downloaded separately — please attach it here.)');
+    const subject=encodeURIComponent('Steady Hands session — '+(S.code||'no code'));
+    window.location.href='mailto:'+ADMIN_EMAIL+'?subject='+subject+'&body='+body;
+    log('Could not auto-send — opened a draft email to attach the file to instead');
+  }
 }
 function exportSession(){
   const stamp=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
@@ -586,7 +620,7 @@ function wirePanel(step, st, i){
 
   if(step.t==='action'){
     const finishBtn=document.getElementById('b-finish');
-    if(finishBtn) finishBtn.onclick=()=>{ log('Session complete'+(S.code?' — '+S.code:'')); completeStep(i); exportSession(); showDoneModal(); };
+    if(finishBtn) finishBtn.onclick=()=>{ log('Session complete'+(S.code?' — '+S.code:'')); completeStep(i); exportSession(); emailSessionToAdmin(); showDoneModal(); };
     else document.getElementById('b-action').onclick=()=>{
       S.startedAt=S.startedAt||nowISO(); log('Session started'+(S.code?' — '+S.code:'')); startTicker(); completeStep(i);
     };
@@ -1027,7 +1061,7 @@ function confirmReset(){
   };
 }
 function showDoneModal(){
-  openModal('<h3>Saved</h3><p>All 15 steps logged'+(S.code?' for '+esc(S.code):'')+' and a copy was offered as a download.</p><div class="btnrow"><button class="primary" id="m-ok">Done</button></div>');
+  openModal('<h3>Saved</h3><p>All steps logged'+(S.code?' for '+esc(S.code):'')+', a copy was downloaded, and it was sent to '+esc(ADMIN_EMAIL)+' (or a draft email opened if that failed).</p><div class="btnrow"><button class="primary" id="m-ok">Done</button></div>');
   document.getElementById('m-ok').onclick=closeModal;
 }
 document.getElementById('modal').addEventListener('click', e=>{ if(e.target.id==='modal') closeModal(); });
